@@ -48,6 +48,7 @@ const defaults: Options = {
   timeout: 5000,
   maxServerPingDelay: 10000,
   networkEventTarget: null,
+  manualTokenRefresh: false
 }
 
 interface serverSubscription {
@@ -166,8 +167,8 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     }
   }
 
-  /** newSubscription allocates new Subscription to a channel. Since server only allows 
-   * one subscription per channel per client this method throws if client already has 
+  /** newSubscription allocates new Subscription to a channel. Since server only allows
+   * one subscription per channel per client this method throws if client already has
    * channel subscription in internal registry.
    * */
   newSubscription(channel: string, options?: Partial<SubscriptionOptions>): Subscription {
@@ -179,13 +180,13 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     return sub;
   }
 
-  /** getSubscription returns Subscription if it's registered in the internal 
+  /** getSubscription returns Subscription if it's registered in the internal
    * registry or null. */
   getSubscription(channel: string): Subscription | null {
     return this._getSub(channel);
   }
 
-  /** removeSubscription allows removing Subcription from the internal registry. Subscrption 
+  /** removeSubscription allows removing Subcription from the internal registry. Subscrption
    * must be in unsubscribed state. */
   removeSubscription(sub: Subscription | null) {
     if (!sub) {
@@ -202,7 +203,7 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     return this._subs;
   }
 
-  /** ready returns a Promise which resolves upon client goes to Connected 
+  /** ready returns a Promise which resolves upon client goes to Connected
    * state and rejects in case of client goes to Disconnected or Failed state.
    * Users can provide optional timeout in milliseconds. */
   ready(timeout?: number): Promise<void> {
@@ -256,7 +257,7 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     this._config.headers = headers;
   }
 
-  /** send asynchronous data to a server (without any response from a server 
+  /** send asynchronous data to a server (without any response from a server
    * expected, see rpc method if you need response). */
   send(data: any): Promise<void> {
     const cmd = {
@@ -394,7 +395,7 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     });
   }
 
-  /** start command batching (collect into temporary buffer without sending to a server) 
+  /** start command batching (collect into temporary buffer without sending to a server)
    * until stopBatching called.*/
   startBatching() {
     // start collecting messages without sending them to Centrifuge until flush
@@ -402,7 +403,7 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     this._batching = true;
   }
 
-  /** stop batching commands and flush collected commands to the 
+  /** stop batching commands and flush collected commands to the
    * network (all in one request/frame).*/
   stopBatching() {
     const self = this;
@@ -1314,6 +1315,11 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
   }
 
   private _refresh() {
+    if (this._config.manualTokenRefresh) {
+      this._failUnauthorized();
+      return;
+    }
+
     const clientId = this._client;
     const self = this;
     this._getToken().then(function (token) {
@@ -1385,6 +1391,7 @@ export class Centrifuge extends (EventEmitter as new () => TypedEventEmitter<Cli
     return backoff(0, 5000, 10000);
   }
 
+  // Здесь происходит refresh
   private _refreshResponse(result: any) {
     if (this._refreshTimeout) {
       clearTimeout(this._refreshTimeout);
